@@ -1,0 +1,148 @@
+#!/usr/bin/env python
+######################################################################
+# Name:		brightness_tool
+# Author:	Jacob Calvert <jacob+info@jacobncalvert.com>
+# Date:		12/27/2014
+# Desc:		This tool was built to help set the brightness on
+#		my laptop because for some reason the brightness
+#		keys won't do it. So this will do it for my laptop.
+# Version:	1.0.0
+######################################################################
+
+
+import subprocess
+import os
+import sys
+
+class BrightnessControl(object):
+	"""
+		This class defines the basic methods for controlling the brightness.
+
+		get_raw_value()		- returns the raw brightness value
+		get_percent()		- returns the brightness as a percent
+		increase(percent=10)	- increases the brightness by percent
+		decrease(percent=10)	- decreases the brightness by percent
+		set_percent(percent)	- set the brightness to the percent
+		_get_current_value()	- reads the current raw value from the file
+		
+		MAX			- the max value I found accepted by my brightness controller
+		FILE_PATH		- the file that is read and written for brightness control
+
+		
+	"""
+
+
+	MAX = 4882
+	FILE_PATH = "/sys/class/backlight/intel_backlight/brightness"
+
+	def __init__(self):
+		self._value = self._get_current_value()
+	
+	def get_raw_value(self):
+		self._value = self._get_current_value()
+		return self._value
+
+	def get_percent(self):
+		self._value = self._get_current_value()
+		perc = (self._value * 100)/self.MAX
+		return perc
+
+	def _get_current_value(self):
+		proc = subprocess.Popen(["cat",self.FILE_PATH],stdout=subprocess.PIPE)
+		results = proc.communicate()
+		return int(results[0])
+	
+	def increase(self,percent=10):
+		perc = self.get_percent()
+		perc+= percent
+		self.set_percent(perc)
+
+	def decrease(self,percent=10):
+		perc = self.get_percent()
+		perc-=percent
+		self.set_percent(perc)	
+	
+	def set_percent(self, percent):
+		if percent > 100:
+			percent = 100
+		elif percent < 5:
+			percent = 5
+		val = (percent*self.MAX)/100
+		cmd = "echo %d | sudo tee %s" % (val, self.FILE_PATH)
+		os.system(cmd)		
+		self._value = self._get_current_value()
+	
+
+def usage():
+	print "Usage: brightness_tool cmd arg"
+	print "valid cmds are set,get,inc,dec"
+	print "Examples:"
+	print "    'brightness_tool set 50'         will set the brightness to 50%"
+	print "    'brightness_tool set max'        will set the brightness to 100%"
+	print "    'brightness_tool set min'        will set the brightness to 5%"
+	print "    'brightness_tool get'            will print the current brightness"
+	print "    'brightness_tool inc 15'         will increase brightness by 15%"
+	print "    'brightness_tool dec 15'         will decrease the brightness by 15%"
+	print "    'brightness_tool inc'            will increase the brightness by defualt 10%"
+	print "    'brightness_tool dec'            will decrease the brightness by defualt 10%"
+
+def not_enough_arguments():
+	usage() # maybe we change this? IDK.
+
+def incorrect_arguments():
+	print "incorrect argument supplied\n"
+	usage() # maybe we change this too?
+
+def is_int(s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+def main():
+	bc = BrightnessControl()
+	if len(sys.argv) < 2:
+		usage()
+	else:
+		cmd = sys.argv[1]
+		if cmd == "get":
+			print "Current brightness is at %d%%" % (bc.get_percent())
+		elif cmd == "set":
+			if len(sys.argv) < 3:
+				not_enough_arguments()
+				return
+			arg = sys.argv[2]
+			
+			if arg == "max":
+				bc.set_percent(100)
+			elif arg == "min":
+				bc.set_percent(5)
+			else:
+				if not is_int(arg):
+					incorrect_arguments()
+					return
+				arg = int(arg)
+				bc.set_percent(arg)
+		elif cmd == "inc":
+			if len(sys.argv) == 3:
+				if not is_int(sys.argv[2]):
+					incorrect_arguments()
+					return
+				arg = int(sys.argv[2])
+				bc.increase(arg)
+			else:
+				bc.increase()
+		elif cmd == "dec":
+                        if len(sys.argv) == 3:
+				if not is_int(sys.argv[2]):
+					incorrect_arguments()
+					return
+                                arg = int(sys.argv[2])
+                                bc.decrease(arg)
+                        else:
+                                bc.decrease()
+		else:
+			incorrect_arguments()
+			return
+main()
